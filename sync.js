@@ -57,10 +57,10 @@ sync.syncFn = function(fn){
 sync.await = Fiber.yield
 
 // Creates fiber-aware asynchronous callback resuming current fiber when it will be finished.
-sync.defer = function(){
-  if(!Fiber.current) throw new Error("no current Fiber, defer can'b be used without Fiber!")
-  if(Fiber.current._syncParallel) return sync.deferParallel()
-  else return sync.deferSerial()
+sync.defer = function(argcount){
+  if(!Fiber.current) throw new Error("no current Fiber, defer can't be used without Fiber!")
+  if(Fiber.current._syncParallel) return sync.deferParallel(argcount)
+  else return sync.deferSerial(argcount)
 }
 
 // Exactly the same as defer, but additionally it triggers an error if there's no response
@@ -87,12 +87,22 @@ sync.deferWithTimeout = function(timeout, message){
 }
 
 //
-sync.deferSerial = function(){
+sync.deferSerial = function(argcount){
   var fiber = Fiber.current
-  if(!fiber) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!fiber) throw new Error("no current Fiber, defer can't be used without Fiber!")
 
   // Returning asynchronous callback.
-  return function(err, result){
+  return function(){
+    var err, result;
+    if(!argcount) {
+      err = arguments[0];
+      result = arguments[1];
+    } else if(argcount == 1) {
+      result = arguments[0];
+    } else {
+      result = arguments;
+    }
+
     // Wrapping in nextTick as a safe measure against not asynchronous usage.
     process.nextTick(function(){
       if(fiber._syncIsTerminated) return
@@ -107,9 +117,9 @@ sync.deferSerial = function(){
   }
 }
 
-sync.deferParallel = function(){
+sync.deferParallel = function(argcount){
   var fiber = Fiber.current
-  if(!fiber) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!fiber) throw new Error("no current Fiber, defer can't be used without Fiber!")
   if(!fiber._syncParallel) throw new Error("invalid usage, should be called in parallel mode!")
   var data = fiber._syncParallel
 
@@ -118,7 +128,17 @@ sync.deferParallel = function(){
   var resultIndex = data.called - 1
 
   // Returning asynchronous callback.
-  return function(err, result){
+  return function(){
+    var err, result;
+    if(!argcount) {
+      err = arguments[0];
+      result = arguments[1];
+    } else if(argcount == 1) {
+      result = arguments[0];
+    } else {
+      result = arguments;
+    }
+    
     // Wrapping in nextTick as a safe measure against not asynchronous usage.
     process.nextTick(function(){
       if(fiber._syncIsTerminated) return
@@ -139,14 +159,14 @@ sync.deferParallel = function(){
 }
 
 sync.defers = function(){
-  if(!Fiber.current) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!Fiber.current) throw new Error("no current Fiber, defer can't be used without Fiber!")
   if(Fiber.current._syncParallel) return sync.defersParallel.apply(sync, arguments)
   else return sync.defersSerial.apply(sync, arguments)
 }
 
 sync.defersSerial = function(){
   var fiber = Fiber.current;
-  if(!fiber) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!fiber) throw new Error("no current Fiber, defer can't be used without Fiber!")
 
   var kwds = Array.prototype.slice.call(arguments)
   // Returning asynchronous callback.
@@ -176,7 +196,7 @@ sync.defersSerial = function(){
 
 sync.defersParallel = function(){
   var fiber = Fiber.current
-  if(!fiber) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!fiber) throw new Error("no current Fiber, defer can't be used without Fiber!")
   if(!fiber._syncParallel) throw new Error("invalid usage, should be called in parallel mode!")
   var data = fiber._syncParallel
   // Counting amount of `defer` calls.
@@ -218,7 +238,7 @@ sync.defersParallel = function(){
 // performed in parallel.
 sync.parallel = function(cb){
   var fiber = Fiber.current
-  if(!fiber) throw new Error("no current Fiber, defer can'b be used without Fiber!")
+  if(!fiber) throw new Error("no current Fiber, defer can't be used without Fiber!")
 
   // Enabling `defer` calls to be performed in parallel.
   // There's an important note - error in any parallel call will result in aborting
